@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Transaction Analytics Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .metric-card {
+            transition: transform 0.2s;
+        }
+        .metric-card:hover {
+            transform: translateY(-5px);
+        }
+        .chart-container {
+            position: relative;
+            height: 300px;
+        }
+        .table-responsive {
+            border-radius: 10px;
+        }
+        body {
+            background-color: #f8f9fa;
+        }
+        .card {
+            box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+            border: none;
+        }
+        
+        /* Hidden button styling */
+        #updateDataBtn {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            z-index: 1000;
+        }
+        
+        #updateDataBtn.show {
+            opacity: 1;
+        }
+        
+        /* JSON input textarea */
+        #jsonInput {
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid py-4">
+        <!-- Header -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <h1 class="display-4 text-center mb-0">
+                    <i class="bi bi-graph-up-arrow text-primary"></i>
+                    Transaction Analytics Dashboard
+                </h1>
+                <!-- <p class="text-center text-muted">Real-time payment processing insights</p> -->
+            </div>
+        </div>
+
+        <!-- Summary Metrics -->
+        <div class="row mb-4">
+            <div class="col-md-4 mb-3">
+                <div class="card metric-card h-100">
+                    <div class="card-body text-center">
+                        <div class="d-flex align-items-center justify-content-center mb-2">
+                            <i class="bi bi-shop fs-1 text-primary me-3"></i>
+                            <div>
+                                <h2 id="totalMerchantCpm" class="card-title mb-0">--</h2>
+                                <p class="card-text text-muted">Total Merchants</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4 mb-3">
+                <div class="card metric-card h-100">
+                    <div class="card-body text-center">
+                        <div class="d-flex align-items-center justify-content-center mb-2">
+                            <i class="bi bi-check-circle fs-1 text-success me-3"></i>
+                            <div>
+                                <h2 id="successRate" class="card-title mb-0">--</h2>
+                                <p class="card-text text-muted">Success Rate</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4 mb-3">
+                <div class="card metric-card h-100">
+                    <div class="card-body text-center">
+                        <div class="d-flex align-items-center justify-content-center mb-2">
+                            <i class="bi bi-currency-dollar fs-1 text-warning me-3"></i>
+                            <div>
+                                <h2 id="nominalTrx" class="card-title mb-0">--</h2>
+                                <p class="card-text text-muted">Total Volume</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Status Distribution -->
+        <div class="row mb-4">
+            <div class="col-md-6 mb-3">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">
+                            <i class="bi bi-pie-chart"></i> Transaction Status
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="chart-container">
+                            <canvas id="statusChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6 mb-3">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">
+                            <i class="bi bi-bar-chart"></i> Last 7 Days Activity
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="chart-container">
+                            <canvas id="weeklyChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Top Merchants Tables -->
+        <div class="row mb-4">
+            <div class="col-lg-6 mb-3">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">
+                            <i class="bi bi-trophy"></i> Top Merchants by Transactions
+                        </h5>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th scope="col">Rank</th>
+                                        <th scope="col">Merchant Name</th>
+                                        <th scope="col">Transactions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="topMerchantsTrx">
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-6 mb-3">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">
+                            <i class="bi bi-cash-stack"></i> Top Merchants by Amount
+                        </h5>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th scope="col">Rank</th>
+                                        <th scope="col">Merchant Name</th>
+                                        <th scope="col">Amount</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="topMerchantsAmount">
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hidden Update Data Button -->
+    <button id="updateDataBtn" class="btn btn-primary btn-lg" data-bs-toggle="modal" data-bs-target="#jsonModal">
+        <i class="bi bi-cloud-upload"></i> Update Data
+    </button>
+
+    <!-- JSON Input Modal -->
+    <div class="modal fade" id="jsonModal" tabindex="-1" aria-labelledby="jsonModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="jsonModalLabel">
+                        <i class="bi bi-code-slash"></i> Update Dashboard Data
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i> 
+                        <strong>Tip:</strong> Paste your JSON data below and click "Apply Changes" to update the dashboard.
+                    </div>
+                    <div class="mb-3">
+                        <label for="jsonInput" class="form-label">JSON Data:</label>
+                        <textarea 
+                            id="jsonInput" 
+                            class="form-control" 
+                            rows="15" 
+                            placeholder='Paste your JSON data here...'
+                        ></textarea>
+                    </div>
+                    <div id="jsonError" class="alert alert-danger d-none">
+                        <i class="bi bi-exclamation-triangle"></i> 
+                        <strong>Error:</strong> <span id="errorMessage"></span>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="bi bi-x-circle"></i> Cancel
+                    </button>
+                    <button type="button" class="btn btn-success" id="applyChanges">
+                        <i class="bi bi-check-circle"></i> Apply Changes
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Global variables to store chart instances
+        let statusChartInstance = null;
+        let weeklyChartInstance = null;
+
+        // Your JSON data
+        let data = [{
+            "result": {
+                "summary": {
+                    "total_merchant_cpm": "1302",
+                    "success_rate_cpm": "98.9",
+                    "total_nominal_cpm": "226665016"
+                },
+                "status_count": [{
+                    "status": "VOID",
+                    "total_by_status": "71"
+                }, {
+                    "status": "SUCCESS",
+                    "total_by_status": "6390"
+                }],
+                "top_merchant_by_trx": [{
+                    "merchant_name": "INDOMARET",
+                    "trx_count": "4587"
+                }, {
+                    "merchant_name": "FM MENARA FIF TBS",
+                    "trx_count": "48"
+                }, {
+                    "merchant_name": "LWSN_6A48_LAWSON MENARA A",
+                    "trx_count": "41"
+                }, {
+                    "merchant_name": "NGI QRICPM SRBOYO BUS",
+                    "trx_count": "29"
+                }, {
+                    "merchant_name": "ALFA_1J7M_KANDIWAKOSAMBI",
+                    "trx_count": "22"
+                }],
+                "top_merchant_by_amount": [{
+                    "merchant_name": "INDOMARET",
+                    "amount_sum": "160258906"
+                }, {
+                    "merchant_name": "LWSN_6A48_LAWSON MENARA A",
+                    "amount_sum": "1132200"
+                }, {
+                    "merchant_name": "FM MENARA FIF TBS",
+                    "amount_sum": "740500"
+                }, {
+                    "merchant_name": "ALFA_1PK7_AYANIKETAPANG",
+                    "amount_sum": "498100"
+                }, {
+                    "merchant_name": "McD Plaza Pd Indah SOK",
+                    "amount_sum": "485001"
+                }],
+                "last_7_days": [{
+                    "trx_date": "2026-01-27",
+                    "trx_count": "209"
+                }, {
+                    "trx_date": "2026-01-26",
+                    "trx_count": "143"
+                }, {
+                    "trx_date": "2026-01-25",
+                    "trx_count": "176"
+                }, {
+                    "trx_date": "2026-01-24",
+                    "trx_count": "175"
+                }, {
+                    "trx_date": "2026-01-23",
+                    "trx_count": "178"
+                }, {
+                    "trx_date": "2026-01-22",
+                    "trx_count": "164"
+                }, {
+                    "trx_date": "2026-01-21",
+                    "trx_count": "140"
+                }]
+            }
+        }];
+
+        // Format number with commas
+        function formatNumber(num) {
+            return parseInt(num).toLocaleString();
+        }
+
+        // Format currency
+        function formatCurrency(amount) {
+            const num = parseInt(amount);
+            if (num >= 1000000) {
+                return `Rp ${(num / 1000000).toFixed(1)}M`;
+            } else if (num >= 1000) {
+                return `Rp ${(num / 1000).toFixed(0)}K`;
+            }
+            return `Rp ${num.toLocaleString()}`;
+        }
+
+        // Update summary metrics
+        function updateSummaryMetrics(result) {
+            // Update Total Merchants
+            document.getElementById("totalMerchantCpm").innerText = result.summary.total_merchant_cpm;
+            
+            // Update Success Rate
+            document.getElementById("successRate").innerText = result.summary.success_rate_cpm + "%";
+            
+            // Update Total Volume
+            const formattedNomTrx = new Intl.NumberFormat('id-ID', {
+                style: 'currency',
+                currency: 'IDR',
+                minimumFractionDigits: 0
+            }).format(result.summary.total_nominal_cpm);
+            document.getElementById("nominalTrx").innerText = formattedNomTrx;
+        }
+
+        // Update merchants tables
+        function updateMerchantsTables(result) {
+            // Update Top Merchants by Transaction table
+            const topTrxTableBody = document.getElementById('topMerchantsTrx');
+            topTrxTableBody.innerHTML = '';
+            result.top_merchant_by_trx.forEach((merchant, index) => {
+                const row = `
+                    <tr>
+                        <td><span class="badge bg-primary">${index + 1}</span></td>
+                        <td>${merchant.merchant_name}</td>
+                        <td><strong>${formatNumber(merchant.trx_count)}</strong></td>
+                    </tr>
+                `;
+                topTrxTableBody.innerHTML += row;
+            });
+
+            // Update Top Merchants by Amount table
+            const topAmountTableBody = document.getElementById('topMerchantsAmount');
+            topAmountTableBody.innerHTML = '';
+            result.top_merchant_by_amount.forEach((merchant, index) => {
+                const row = `
+                    <tr>
+                        <td><span class="badge bg-success">${index + 1}</span></td>
+                        <td>${merchant.merchant_name}</td>
+                        <td><strong>${formatCurrency(merchant.amount_sum)}</strong></td>
+                    </tr>
+                `;
+                topAmountTableBody.innerHTML += row;
+            });
+        }
+
+        // Update charts
+        function updateCharts(result) {
+            // Destroy existing charts if they exist
+            if (statusChartInstance) {
+                statusChartInstance.destroy();
+            }
+            if (weeklyChartInstance) {
+                weeklyChartInstance.destroy();
+            }
+
+            // Status Chart
+            const statusCtx = document.getElementById('statusChart').getContext('2d');
+            statusChartInstance = new Chart(statusCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: result.status_count.map(s => s.status),
+                    datasets: [{
+                        data: result.status_count.map(s => parseInt(s.total_by_status)),
+                        backgroundColor: ['#dc3545', '#198754'],
+                        borderWidth: 3,
+                        borderColor: '#fff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        }
+                    }
+                }
+            });
+
+            // Sort ascending by date
+            result.last_7_days.sort((a, b) => new Date(a.trx_date) - new Date(b.trx_date));
+
+            // Weekly Chart
+            const weeklyCtx = document.getElementById('weeklyChart').getContext('2d');
+            weeklyChartInstance = new Chart(weeklyCtx, {
+                type: 'line',
+                data: {
+                    labels: result.last_7_days.map(d => {
+                        const date = new Date(d.trx_date);
+                        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                    }),
+                    datasets: [{
+                        label: 'Transactions',
+                        data: result.last_7_days.map(d => parseInt(d.trx_count)),
+                        borderColor: '#0d6efd',
+                        backgroundColor: 'rgba(13, 110, 253, 0.1)',
+                        fill: true,
+                        tension: 0.4,
+                        pointBackgroundColor: '#0d6efd',
+                        pointBorderColor: '#fff',
+                        pointBorderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: { beginAtZero: true }
+                    }
+                }
+            });
+        }
+
+        // Main function to update dashboard
+        function updateDashboard() {
+            const result = data[0].result;
+            updateSummaryMetrics(result);
+            updateMerchantsTables(result);
+            updateCharts(result);
+        }
+
+        // Show/Hide hidden button (press Ctrl+Shift+U)
+        document.addEventListener('keydown', function(e) {
+            if (e.ctrlKey && e.shiftKey && e.key === 'U') {
+                const btn = document.getElementById('updateDataBtn');
+                btn.classList.toggle('show');
+            }
+        });
+
+        // Apply changes from JSON input
+        document.getElementById('applyChanges').addEventListener('click', function() {
+            const jsonInput = document.getElementById('jsonInput').value;
+            const errorDiv = document.getElementById('jsonError');
+            const errorMessage = document.getElementById('errorMessage');
+            
+            try {
+                // Parse the JSON
+                const newData = JSON.parse(jsonInput);
+                
+                // Validate the structure (basic check)
+                if (!newData[0] || !newData[0].result) {
+                    throw new Error('Invalid JSON structure. Expected format: [{"result": {...}}]');
+                }
+                
+                // Update global data
+                data = newData;
+                
+                // Update dashboard
+                updateDashboard();
+                
+                // Hide error and close modal
+                errorDiv.classList.add('d-none');
+                bootstrap.Modal.getInstance(document.getElementById('jsonModal')).hide();
+                
+                // Show success message
+                const successAlert = document.createElement('div');
+                successAlert.className = 'alert alert-success alert-dismissible fade show position-fixed';
+                successAlert.style.cssText = 'top: 20px; right: 20px; z-index: 9999;';
+                successAlert.innerHTML = `
+                    <i class="bi bi-check-circle"></i> Dashboard updated successfully!
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                `;
+                document.body.appendChild(successAlert);
+                
+                // Auto-remove success message after 3 seconds
+                setTimeout(() => {
+                    if (successAlert.parentNode) {
+                        successAlert.remove();
+                    }
+                }, 3000);
+                
+            } catch (error) {
+                // Show error message
+                errorMessage.textContent = error.message;
+                errorDiv.classList.remove('d-none');
+            }
+        });
+
+        // Populate JSON input with current data when modal opens
+        document.getElementById('jsonModal').addEventListener('show.bs.modal', function() {
+            document.getElementById('jsonInput').value = JSON.stringify(data, null, 2);
+        });
+
+        // Initialize dashboard on page load
+        updateDashboard();
+    </script>
+</body>
+</html>
